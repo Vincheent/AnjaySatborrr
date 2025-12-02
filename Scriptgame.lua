@@ -16,7 +16,8 @@ local isActive        = false
 local wasPaused       = false     
 local textdrawActive  = false     
 local fishTextdrawId  = nil      
-local targetSlot      = 2         
+local targetSlot      = nil         -- DEFAULT nil (belum di-set)
+local slotConfigured  = false       -- flag apakah user sudah set slot
 
 -- deteksi textdraw inventory
 local slotId = {}                 -- mapping index slot -> textdraw id
@@ -69,7 +70,6 @@ local function openInventoryAndUse(slot)
             return
         end
 
-    
         slotId = {}
         gunakanId = nil
 
@@ -93,7 +93,7 @@ local function openInventoryAndUse(slot)
             return
         end
 
-        -- Klik slot → klik Gunakan → (biar aman) klik 65535 untuk 'release'
+        -- Klik slot  klik Gunakan  (biar aman) klik 65535 untuk 'release'
         sendSelectTextDraw(slotId[slot]); wait(79)
         sendSelectTextDraw(gunakanId);   wait(79)
         sendSelectTextDraw(65535)
@@ -112,7 +112,7 @@ end
 -- ======== SERVER MESSAGES (opsional penanganan gagal) ========
 function sampev.onServerMessage(color, text)
     if not isActive then return end
-    local lowerText = string.lower(text or "")
+    local lowerText = string.lower(text or "rusak")
     -- Jika server mengirim pesan gagal (contoh: sampah/terputus), kita coba ulang siklus
     if lowerText:find("terputus") or lowerText:find("sampah") or lowerText:find("mendapatkan") or lowerText:find("berat") then
         lua_thread.create(function()
@@ -229,14 +229,21 @@ function main()
     repeat wait(100) until isSampAvailable()
     wait(1000)
 
-    sampAddChatMessage("[AutoFish] Siap. Gunakan /fishh untuk ON/OFF. /fishslot [1-20] untuk pilih slot.", COLOR_WARN)
+    sampAddChatMessage("[AutoFish] Siap. Gunakan /umpan [1-20] untuk set slot, lalu /fishh untuk ON/OFF.", COLOR_WARN)
 
-    sampRegisterChatCommand("fishh", function()
+    sampRegisterChatCommand("fisher", function()
+        -- VALIDASI: Cek apakah slot sudah di-set
+        if not slotConfigured or not targetSlot then
+            sampAddChatMessage("[AutoFish] {FF0000}ERROR: {FFFFFF}Kamu belum set slot!", COLOR_ERR)
+            sampAddChatMessage("[AutoFish] {FFFF00}Gunakan: {FFFFFF}/umpan [1-20] {FFFF00}terlebih dahulu!", COLOR_WARN)
+            return
+        end
+
         isActive = not isActive
         if isActive then
             textdrawActive = false
             fishTextdrawId = nil
-            sampAddChatMessage(string.format("[AutoFish] AKTIF (slot=%d). Memulai siklus...", targetSlot), COLOR_OK)
+            sampAddChatMessage(string.format("[AutoFish] {00FF00}AKTIF {FFFFFF}(slot=%d). Memulai siklus...", targetSlot), COLOR_OK)
             lua_thread.create(function()
                 wait(400)
                 cycleOnce()
@@ -244,17 +251,20 @@ function main()
         else
             textdrawActive = false
             fishTextdrawId = nil
-            sampAddChatMessage("[AutoFish] NONAKTIF.", COLOR_INFO)
+            sampAddChatMessage("[AutoFish] {FF0000}NONAKTIF.", COLOR_INFO)
         end
     end)
 
-    sampRegisterChatCommand("fishslot", function(p)
+    sampRegisterChatCommand("umpan", function(p)
         local s = tonumber(p)
         if s and s >= 1 and s <= 20 then
             targetSlot = s
-            sampAddChatMessage(string.format("[AutoFish] Slot diset ke %d.", targetSlot), COLOR_INFO)
+            slotConfigured = true
+            sampAddChatMessage(string.format("[AutoFish] {00FF00}SLOT BERHASIL DISET KE %d.", targetSlot), COLOR_OK)
+            sampAddChatMessage("[AutoFish] {FFFF00}Sekarang kamu bisa gunakan /fishh untuk mulai!", COLOR_INFO)
         else
-            sampAddChatMessage("[AutoFish] Usage: /fishslot [1-20]", COLOR_INFO)
+            sampAddChatMessage("[AutoFish] {FF0000}Usage: {FFFFFF}/umpan [1-20]", COLOR_ERR)
+            sampAddChatMessage("[AutoFish] {FFFF00}Contoh: {FFFFFF}/umpan 1", COLOR_INFO)
         end
     end)
 
